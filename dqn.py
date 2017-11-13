@@ -4,6 +4,7 @@ import random
 import gym
 import numpy as np
 import time
+import sys
 
 import curses
 import numpy as np
@@ -19,10 +20,10 @@ import logging
 
 EPISODES = 1000
 
-# https://machinelearningmastery.com/save-load-keras-deep-learning-models/
-# https://github.com/fchollet/keras/issues/4875
-
-
+# Deep Q Network:
+# https://github.com/keon/deep-q-learning
+# And the blog
+# https://keon.io/deep-q-learning/
 class DQNAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
@@ -40,9 +41,7 @@ class DQNAgent:
         model = Sequential()
         model.add(Dense(64, input_dim=self.state_size, activation='relu'))
         model.add(Dropout(0.2))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dropout(0.2))
-        model.add(Dense(16, activation='relu'))
+        model.add(Dense(32, activation='relu'))
         model.add(Dropout(0.2))
         model.add(Dense(self.action_size, activation='softmax'))
         model.compile(loss='mse',
@@ -78,10 +77,8 @@ class DQNAgent:
     def save(self, name):
         self.model.save(name + '.h5', overwrite=True)
 
-
 def write_state(state):
     map_ = ""
-    # print_state = np.reshape(state, board_size)
     for each in state:
         line = ""
         for sym in each:
@@ -93,20 +90,28 @@ def write_state(state):
                 line += "o"
             elif sym == 1:
                 line += "$"
-        print(line)# + "\n"
-    # handle.write("=======================================================================\n")
-    # return map_
-
+        print(line)
+    print(" ")
 
 if __name__ == '__main__':
     from snake import Snake
 
+    make_images = True
+    if make_images:
+        import matplotlib.pyplot as plt
 
-    PLAY = True
-    # PLAY = False
+    args = sys.argv
+
+    if args[1].lower() == 'play':
+        PLAY = True
+    elif args[1].lower() == 'train':
+        PLAY = False
+    else:
+        print("Could not get the command. Please supply if we train or play, f.ex:")
+        print(">> python dqn.py play")
+        sys.exit()
 
     actions = [KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT]
-
 
     snake = Snake(render=False)
     board_size = snake.size
@@ -119,7 +124,7 @@ if __name__ == '__main__':
 
     if PLAY:
         EPISODES = 1
-    agent.load("snake_model")
+        agent.load("snake_model")
 
     for e in range(EPISODES):
         done = False
@@ -130,11 +135,16 @@ if __name__ == '__main__':
                 break
             action = agent.act(state)
             if PLAY:
-                write_state(original)
-                print(snake.snake)
-                print(snake.food)
-                print(action)
-                time.sleep(0.1)
+                if make_images:
+                    fig = plt.figure(frameon=False)
+                    ax = plt.Axes(fig, [0., 0., 1., 1.])
+                    ax.set_axis_off()
+                    fig.add_axes(ax)
+                    ax.matshow(original)
+                    fig.savefig('./images/snake_{}.png'.format(str(time_i).zfill(3)), bbox_inches='tight')
+                else:
+                    write_state(original)
+                    time.sleep(0.1)
             snake.step(actions[action])
             reward, done = snake.play()
             next_state, original = snake.get_state()
@@ -152,32 +162,3 @@ if __name__ == '__main__':
                 agent.save("snake_model")
     if not PLAY:
         agent.save("snake_model")
-
-# if __name__ == "__main__":
-#     env = gym.make('CartPole-v1')
-#     state_size = env.observation_space.shape[0]
-#     action_size = env.action_space.n
-#     agent = DQNAgent(state_size, action_size)
-#     # agent.load("./save/cartpole-dqn.h5")
-#     done = False
-#     batch_size = 32
-
-#     for e in range(EPISODES):
-#         state = env.reset()
-#         state = np.reshape(state, [1, state_size])
-#         for time in range(500):
-#             env.render()
-#             action = agent.act(state)
-#             next_state, reward, done, _ = env.step(action)
-#             reward = reward if not done else -10
-#             next_state = np.reshape(next_state, [1, state_size])
-#             agent.remember(state, action, reward, next_state, done)
-#             state = next_state
-#             if done:
-#                 print("episode: {}/{}, score: {}, e: {:.2}"
-#                       .format(e, EPISODES, time, agent.epsilon))
-#                 break
-#         if len(agent.memory) > batch_size:
-#             agent.replay(batch_size)
-        # if e % 10 == 0:
-        #     agent.save("./save/cartpole-dqn.h5")

@@ -1,5 +1,8 @@
-# SNAKES GAME
-# Use ARROW KEYS to play, SPACE BAR for pausing/resuming and Esc Key for exiting
+"""
+Snake game
+
+Base for the snake game got from here: https://gist.github.com/sanchitgangwar/2158089
+"""
 
 import curses
 import numpy as np
@@ -7,11 +10,12 @@ from curses import KEY_RIGHT, KEY_LEFT, KEY_UP, KEY_DOWN
 from random import randint
 
 class Snake(object):
-
+    """Snake game
+    """
     def __init__(self, render=True):
         self.size = (21, 61)
-        self.mid_axis_0 = int(np.floor(self.size[0] / 2))
-        self.mid_axis_1 = int(np.floor(self.size[1] / 2))
+        self.mid_axis_0 = int(np.floor(21 / 2))
+        self.mid_axis_1 = int(np.floor(61 / 2))
         self.render = render
         if self.render:
             curses.initscr()
@@ -35,6 +39,8 @@ class Snake(object):
         self.move_penalty = 0
 
     def reset(self):
+        """Reset the board and fruit location
+        """
         if self.render:
             self.win = curses.newwin(self.size[0], self.size[1], 0, 0)
             self.win.keypad(1)
@@ -55,6 +61,8 @@ class Snake(object):
         return self.get_state()
 
     def get_state(self):
+        """Get the current game map
+        """
         table = np.zeros(self.size)
         for each in self.snake:
             table[each[0], each[1]] = 0.2
@@ -70,7 +78,8 @@ class Snake(object):
         return shifted_table, table
 
     def step(self, key=None):
-        # self.move_penalty = 0
+        """Add direction for the next step
+        """
         self.prev_key = self.key
         if key is None:
             event = self.win.getch()
@@ -88,6 +97,8 @@ class Snake(object):
             self.key = self.prev_key
 
     def play(self):
+        """Apply move
+        """
 
         if self.render:
             self.win.border(0)
@@ -97,16 +108,14 @@ class Snake(object):
 
         # Calculates the new coordinates of the head of the snake. NOTE: len(snake) increases.
         # This is taken care of later at [1].
-        self.snake.insert(0, [self.snake[0][0] + (self.key == KEY_DOWN and 1) + (self.key == KEY_UP and -1), self.snake[0][1] + (self.key == KEY_LEFT and -1) + (self.key == KEY_RIGHT and 1)])
+        self.snake.insert(0, [self.snake[0][0] + (self.key == KEY_DOWN and 1) + (self.key == KEY_UP and -1),
+                              self.snake[0][1] + (self.key == KEY_LEFT and -1) + (self.key == KEY_RIGHT and 1)])
 
         # If snake crosses the boundaries, make it enter from the other side
         if self.snake[0][0] == 0: self.snake[0][0] = 18
         if self.snake[0][1] == 0: self.snake[0][1] = 58
         if self.snake[0][0] == 19: self.snake[0][0] = 1
         if self.snake[0][1] == 59: self.snake[0][1] = 1
-
-        # Exit if snake crosses the boundaries (Uncomment to enable)
-        #if snake[0][0] == 0 or snake[0][0] == 19 or snake[0][1] == 0 or snake[0][1] == 59: break
 
         # If snake runs over itself
         if self.snake[0] in self.snake[1:]:
@@ -132,8 +141,13 @@ class Snake(object):
             self.win.addch(self.snake[0][0], self.snake[0][1], '#')
         head = self.snake[0]
         neck = self.snake[1]
+
+        # Calculate the distance to the food
+        # Neck is the last head location and the head is the new head location
         dist_1 = np.sqrt( (head[0] - self.food[0])**2 + (head[1] - self.food[1])**2 )
         dist_2 = np.sqrt( (neck[0] - self.food[0])**2 + (neck[1] - self.food[1])**2 )
+
+        # Add a point if we moved closer to the food
         if dist_1 < dist_2:
             return 1, False
         else:
