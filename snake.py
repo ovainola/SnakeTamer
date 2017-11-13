@@ -4,18 +4,25 @@ Snake game
 Base for the snake game got from here: https://gist.github.com/sanchitgangwar/2158089
 """
 
+
+# https://gist.github.com/sanchitgangwar/2158089
 import curses
 import numpy as np
 from curses import KEY_RIGHT, KEY_LEFT, KEY_UP, KEY_DOWN
 from random import randint
 
+
+KEY_DICT = {KEY_RIGHT: 0, KEY_LEFT: 0.3, KEY_UP: 0.6, KEY_DOWN:1}
+
 class Snake(object):
     """Snake game
     """
     def __init__(self, render=True):
-        self.size = (21, 61)
-        self.mid_axis_0 = int(np.floor(21 / 2))
-        self.mid_axis_1 = int(np.floor(61 / 2))
+        self.size = (15, 15)
+        self.input_size = 5
+        self.n_moves = 5
+        self.mid_axis_0 = int(np.floor(self.size[0] / 2))
+        self.mid_axis_1 = int(np.floor(self.size[1] / 2))
         self.render = render
         if self.render:
             curses.initscr()
@@ -27,16 +34,46 @@ class Snake(object):
             self.win.border(0)
             self.win.nodelay(1)
 
-        self.key = KEY_RIGHT
-        self.score = 0
-
-        self.snake = [[4, 10], [4, 9], [4, 8]]
-        self.food = [10, 20]
-
+        self.initial_conditions()
         if self.render:
             self.win.addch(self.food[0], self.food[1], '*')
         self.prev_key = None
         self.move_penalty = 0
+
+    def get_input_size(self):
+        return self.input_size
+
+    def initial_conditions(self):
+        self.score = 0
+        snake_head_x = np.random.randint(2, self.size[0]-2)
+        snake_head_y = np.random.randint(2, self.size[1]-2)
+        self.snake = [[snake_head_x, snake_head_y]]
+        snake_dir = np.random.choice([KEY_RIGHT, KEY_LEFT, KEY_UP, KEY_DOWN])
+        if snake_dir == KEY_RIGHT:
+            self.key = KEY_LEFT
+            body_1 = [snake_head_x, snake_head_y+1]
+            body_2 = [snake_head_x, snake_head_y+2]
+        elif snake_dir == KEY_LEFT:
+            self.key = KEY_RIGHT
+            body_1 = [snake_head_x, snake_head_y-1]
+            body_2 = [snake_head_x, snake_head_y-2]
+        elif snake_dir == KEY_UP:
+            self.key = KEY_DOWN
+            body_1 = [snake_head_x-1, snake_head_y]
+            body_2 = [snake_head_x-2, snake_head_y]
+        elif snake_dir == KEY_DOWN:
+            self.key = KEY_UP
+            body_1 = [snake_head_x+1, snake_head_y]
+            body_2 = [snake_head_x+2, snake_head_y]
+        self.snake.append(body_1)
+        self.snake.append(body_2)
+        while True:
+            food_x = np.random.randint(1, self.size[0]-2)
+            food_y = np.random.randint(1, self.size[1]-2)
+            food = [food_x, food_y]
+            if food not in self.snake:
+                self.food = food
+                break
 
     def reset(self):
         """Reset the board and fruit location
@@ -49,12 +86,7 @@ class Snake(object):
             self.win.border(0)
             self.win.nodelay(1)
 
-        self.key = KEY_RIGHT
-        self.score = 0
-
-        self.snake = [[4, 10], [4, 9], [4, 8]]
-        self.food = [10, 20]
-
+        self.initial_conditions()
         if self.render:
             self.win.addch(self.food[0], self.food[1], '*')
         self.prev_key = None
@@ -64,18 +96,51 @@ class Snake(object):
         """Get the current game map
         """
         table = np.zeros(self.size)
+        print_table = np.zeros(self.size)
+
+        # Add snake to table
         for each in self.snake:
-            table[each[0], each[1]] = 0.2
-        table[self.snake[0][0], self.snake[0][1]] = 0.5
+            table[each[0], each[1]] = 0.5
+        table[self.snake[0][0], self.snake[0][1]] = 2.0
         table[self.food[0], self.food[1]] = 1
 
+        # Shift table so that head is in the middle
         shift_1 = self.mid_axis_0 - self.snake[0][0]
         shift_2 = self.mid_axis_1 - self.snake[0][1]
 
         shifted_table = np.roll(table, shift_1, axis=0)
         shifted_table = np.roll(shifted_table, shift_2, axis=1)
 
-        return shifted_table, table
+        i, j = np.where(shifted_table == 1)
+
+        n1 = i[0] - self.mid_axis_0
+        n2 = j[0] - self.mid_axis_1
+
+        shifted_table[i[0], j[0]] = 0
+
+        food_idx = 0
+        if abs(n1) < abs(n2):
+            if np.sign(n1) == 1:
+                food_idx = 0
+            else:
+                food_idx = 1
+        else:
+            if np.sign(n2) == 1:
+                food_idx = 2
+            else:
+                food_idx = 3
+
+        msize = self.get_input_size()
+        final_input = np.zeros((1, msize))
+
+        # Take surrounding elements around the head
+        final_input[0, 0] = shifted_table[self.mid_axis_0 + 1, self.mid_axis_1    ]
+        final_input[0, 1] = shifted_table[self.mid_axis_0    , self.mid_axis_1 + 1]
+        final_input[0, 2] = shifted_table[self.mid_axis_0 - 1, self.mid_axis_1    ]
+        final_input[0, 3] = shifted_table[self.mid_axis_0    , self.mid_axis_1  -1]
+        final_input[0, 4] = food_idx
+
+        return final_input, table
 
     def step(self, key=None):
         """Add direction for the next step
@@ -87,6 +152,7 @@ class Snake(object):
             event = key
         self.key = self.key if event == -1 else event
 
+        # Add an precaution, so that we don't collide to the previous element
         if self.key == KEY_LEFT and self.prev_key == KEY_RIGHT:
             self.key = self.prev_key
         elif self.key == KEY_RIGHT and self.prev_key == KEY_LEFT:
@@ -102,8 +168,6 @@ class Snake(object):
 
         if self.render:
             self.win.border(0)
-            self.win.addstr(0, 2, 'Score : ' + str(self.score) + ' ')
-            self.win.addstr(0, 27, ' SNAKE ')
             self.win.timeout(int(150 - (len(self.snake)/5 + len(self.snake)/10)%120))
 
         # Calculates the new coordinates of the head of the snake. NOTE: len(snake) increases.
@@ -112,10 +176,9 @@ class Snake(object):
                               self.snake[0][1] + (self.key == KEY_LEFT and -1) + (self.key == KEY_RIGHT and 1)])
 
         # If snake crosses the boundaries, make it enter from the other side
-        if self.snake[0][0] == 0: self.snake[0][0] = 18
-        if self.snake[0][1] == 0: self.snake[0][1] = 58
-        if self.snake[0][0] == 19: self.snake[0][0] = 1
-        if self.snake[0][1] == 59: self.snake[0][1] = 1
+        self.snake[0][0] = (self.snake[0][0] + self.size[0]) % (self.size[0])
+        self.snake[0][1] = (self.snake[0][1] + self.size[1]) % (self.size[1])
+
 
         # If snake runs over itself
         if self.snake[0] in self.snake[1:]:
@@ -128,7 +191,7 @@ class Snake(object):
             self.food = []
             self.score += 1
             while self.food == []:
-                self.food = [randint(1, 18), randint(1, 58)] # Calculating next food's coordinates
+                self.food = [randint(1, self.size[0]-1), randint(1, self.size[1]-1)] # Calculating next food's coordinates
                 if self.food in self.snake: self.food = []
             if self.render:
                 self.win.addch(self.food[0], self.food[1], '*')
@@ -142,18 +205,22 @@ class Snake(object):
         head = self.snake[0]
         neck = self.snake[1]
 
-        # Calculate the distance to the food
-        # Neck is the last head location and the head is the new head location
-        dist_1 = np.sqrt( (head[0] - self.food[0])**2 + (head[1] - self.food[1])**2 )
-        dist_2 = np.sqrt( (neck[0] - self.food[0])**2 + (neck[1] - self.food[1])**2 )
+        shift_x = self.mid_axis_0 - head[0]
+        shift_y = self.mid_axis_1 - head[1]
 
-        # Add a point if we moved closer to the food
+        food_x_shifted = self.food[0] + shift_x
+        food_y_shifted = self.food[1] + shift_y
+
+        neck_x_shifted = neck[0] + shift_x
+        neck_y_shifted = neck[1] + shift_y
+
+        dist_1 = np.sqrt( (self.mid_axis_0 - food_x_shifted)**2 + (self.mid_axis_1 - food_y_shifted)**2 )
+        dist_2 = np.sqrt( (neck_x_shifted - food_x_shifted)**2 + (neck_y_shifted - food_y_shifted)**2 )
+
         if dist_1 < dist_2:
-            return 1, False
-        else:
-            return -1, False
+            return 0.1, False
 
-        print("\nScore - " + str(self.score))
+        return -0.3, False
 
 if __name__ == '__main__':
     snake = Snake()
